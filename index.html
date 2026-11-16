@@ -94,7 +94,6 @@
 <!-- Setup -->
 <section id="setup" class="screen active">
   <h1>FormCoach</h1>
-  <p class="sub">Your camera counts the reps. Your phone talks you through them.</p>
 
   <h2>Exercise</h2>
   <div class="grid" id="exGrid"></div>
@@ -174,13 +173,13 @@ import { PoseLandmarker, FilesetResolver, DrawingUtils }
    high : angle you must return above to finish the rep
    Tune these numbers if your camera setup needs it. */
 const EXERCISES = {
-  pushup: { name:"Push-ups", unit:"reps", kcal:0.45, joints:"elbow",
+  pushup: { name:"Push-ups", unit:"reps", kcal:0.4, joints:"elbow",
     low:100, good:88, high:155, deepCue:"Go a little lower", shallowCue:"Chest closer to the floor",
     tips:"Place the phone to your <b>side</b>, 1.5 to 2 m away, on the floor. Keep your whole body in frame." },
-  pullup: { name:"Pull-ups", unit:"reps", kcal:1.0, joints:"elbow",
+  pullup: { name:"Pull-ups", unit:"reps", kcal:0.6, joints:"elbow",
     low:85, good:68, high:150, deepCue:"Pull a bit higher", shallowCue:"Chin over the bar",
     tips:"Place the phone <b>in front or to the side</b>, 2 to 3 m away. Hang with arms fully straight between reps." },
-  squat: { name:"Squats", unit:"reps", kcal:0.32, joints:"knee",
+  squat: { name:"Squats", unit:"reps", kcal:0.4, joints:"knee",
     low:112, good:98, high:160, deepCue:"Sit a little deeper", shallowCue:"Hips lower",
     tips:"Place the phone to your <b>side</b>, 2 m away, at hip height. Stand fully upright between reps." },
   crunch: { name:"Crunches", unit:"reps", kcal:0.15, joints:"torso",
