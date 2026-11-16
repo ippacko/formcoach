@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<title>FormCoach | AI Workout Tracker</title>
+<style>
+  :root {
+    --bg:#ffffff; --surface:#fafafa; --fg:#0a0a0a; --muted:#6b6b6b; --line:#e5e5e5; --line-strong:#0a0a0a;
+    --radius:10px;
+    --font:"Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family:var(--font); -webkit-font-smoothing:antialiased; letter-spacing:-0.01em; }
+  .screen { display:none; height:100%; flex-direction:column; width:100%; max-width:560px; margin:0 auto; padding:max(24px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); overflow-y:auto; }
+  .screen.active { display:flex; }
+  h1 { margin:8px 0 6px; font-size:32px; font-weight:700; letter-spacing:-0.03em; }
+  h2 { margin:28px 0 12px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); }
+  p.sub { margin:0 0 8px; color:var(--muted); font-size:15px; line-height:1.5; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .ex { background:var(--bg); border:1px solid var(--line); border-radius:var(--radius); padding:20px 12px; text-align:left; font:inherit; font-size:15px; font-weight:600; color:var(--fg); cursor:pointer; transition:border-color .15s, background .15s, color .15s; }
+  .ex:hover { border-color:#a3a3a3; }
+  .ex.sel { background:var(--fg); border-color:var(--fg); color:var(--bg); }
+  .row { display:flex; gap:12px; align-items:center; margin:12px 0 0; flex-wrap:wrap; }
+  label { color:var(--fg); font-size:14px; display:inline-flex; align-items:center; gap:8px; }
+  .field { color:var(--muted); font-size:13px; }
+  select, input[type=number] { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; font-size:15px; }
+  select:focus, input[type=number]:focus, button:focus-visible { outline:2px solid var(--fg); outline-offset:2px; }
+  input[type=number] { width:90px; }
+  input[type=checkbox] { accent-color:var(--fg); width:16px; height:16px; margin:0; }
+  button { font-family:inherit; }
+  button.primary { background:var(--fg); color:var(--bg); border:1px solid var(--fg); border-radius:var(--radius); padding:16px; font-size:16px; font-weight:600; width:100%; margin-top:auto; cursor:pointer; transition:opacity .15s; }
+  button.primary:hover { opacity:.85; }
+  button.primary:disabled { opacity:.4; }
+  button.ghost { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:12px 14px; font-size:14px; font-weight:500; cursor:pointer; transition:border-color .15s; }
+  button.ghost:hover { border-color:var(--fg); }
+  button.danger { background:var(--fg); color:var(--bg); border:1px solid var(--fg); border-radius:8px; padding:12px 14px; font-size:14px; font-weight:600; cursor:pointer; }
+  .tips { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; color:var(--muted); font-size:14px; line-height:1.55; margin-top:24px; }
+  .tips b { color:var(--fg); font-weight:600; }
+  #setup .primary { margin-top:24px; }
+
+  #workout { max-width:none; padding:0; position:relative; background:#000; color:#fff; overflow:hidden; }
+  #stage { position:absolute; inset:0; }
+  #video, #overlay { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  .mirror { transform:scaleX(-1); }
+  .hud-top { position:absolute; top:0; left:0; right:0; padding:max(14px, env(safe-area-inset-top)) 16px 28px; display:flex; justify-content:space-between; align-items:flex-start; background:linear-gradient(#000c, #0000); gap:8px; }
+  .hud-bottom { position:absolute; bottom:0; left:0; right:0; padding:32px 16px max(16px, env(safe-area-inset-bottom)); background:linear-gradient(#0000, #000d); display:flex; flex-direction:column; gap:12px; }
+  .count { font-size:80px; font-weight:700; line-height:1; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; }
+  .count small { font-size:20px; font-weight:500; color:#a3a3a3; letter-spacing:0; }
+  .exname { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; }
+  .timer { font-variant-numeric:tabular-nums; color:#a3a3a3; font-size:15px; margin-top:4px; }
+  #msg { align-self:center; text-align:center; font-size:16px; font-weight:600; min-height:24px; padding:6px 14px; border-radius:999px; }
+  #msg:empty { padding:6px 0; }
+  #msg.good { background:#fff; color:#000; }
+  #msg.warn { border:1px solid #fff; color:#fff; background:#000a; }
+  .btns { display:flex; gap:8px; justify-content:space-between; }
+  .btns > * { flex:1; }
+  #workout button.ghost { background:#000a; color:#fff; border-color:#ffffff55; }
+  #workout button.ghost:hover { border-color:#fff; }
+  #workout button.danger { background:#fff; color:#000; border-color:#fff; }
+  #workout button:focus-visible { outline-color:#fff; }
+  #countdown { position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; background:#000b; font-size:120px; font-weight:700; text-align:center; }
+  #countdown span { font-size:16px; font-weight:500; color:#a3a3a3; padding:0 24px; }
+  #loading { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:#000e; font-size:15px; color:#a3a3a3; text-align:center; padding:24px; }
+  #switchPanel { position:absolute; inset:0; background:#000d; display:none; align-items:center; justify-content:center; padding:20px; }
+  #switchPanel .box { background:var(--bg); color:var(--fg); border-radius:14px; padding:20px; width:100%; max-width:420px; }
+  #switchPanel .box h2 { margin-top:0; }
+  #switchPanel .box button.ghost { background:var(--bg); color:var(--fg); border-color:var(--line); }
+  #switchPanel .box button.ghost:hover { border-color:var(--fg); }
+  #switchPanel .ex.sel { background:var(--fg); color:var(--bg); }
+
+  .stat { background:var(--bg); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin:8px 0; }
+  .stat .big { font-size:32px; font-weight:700; letter-spacing:-0.03em; }
+  .stat .lbl { color:var(--muted); font-size:12px; margin-top:2px; }
+  .tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
+  .tiles .stat { margin:0; text-align:left; padding:14px; }
+  .tiles .big { font-size:26px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { padding:12px 6px; text-align:left; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td { border-bottom:0; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  .bar { height:4px; background:var(--line); border-radius:2px; overflow:hidden; margin-bottom:4px; }
+  .bar > i { display:block; height:100%; background:var(--fg); }
+  .note { color:var(--muted); font-size:12px; line-height:1.5; margin-top:12px; }
+  .coach-line { margin:0; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; line-height:1.5; }
+  .coach-line:last-child { border-bottom:0; }
+  #summary .row { margin-top:4px; }
+  #summary .primary { margin-top:16px; flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<!-- Setup -->
+<section id="setup" class="screen active">
+  <h1>FormCoach</h1>
+  <p class="sub">Your camera counts the reps. Your phone talks you through them.</p>
+
+  <h2>Exercise</h2>
+  <div class="grid" id="exGrid"></div>
+
+  <h2>Settings</h2>
+  <div class="row" style="margin-top:0">
+    <label class="field" for="target">Target reps</label>
+    <input id="target" type="number" min="1" max="200" value="10" inputmode="numeric">
+    <label class="field" for="cam">Camera</label>
+    <select id="cam"><option value="user">Front</option><option value="environment">Back</option></select>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="voiceOn" checked> Voice coach</label>
+    <label><input type="checkbox" id="skeletonOn" checked> Show skeleton</label>
+  </div>
+
+  <div class="tips" id="tips"></div>
+  <p class="note">All processing happens on your device. Video is never uploaded.</p>
+  <button class="primary" id="startBtn">Start workout</button>
+</section>
+
+<!-- Workout -->
+<section id="workout" class="screen">
+  <div id="stage">
+    <video id="video" playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div class="hud-top">
+    <div>
+      <div class="exname" id="hudEx"></div>
+      <div class="timer" id="hudTime">0:00</div>
+    </div>
+    <div class="count"><span id="hudCount">0</span><small id="hudTarget"></small></div>
+  </div>
+  <div class="hud-bottom">
+    <div id="msg"></div>
+    <div class="btns">
+      <button class="ghost" id="switchBtn">Change exercise</button>
+      <button class="ghost" id="muteBtn">Voice: on</button>
+      <button class="danger" id="finishBtn">Finish</button>
+    </div>
+  </div>
+  <div id="countdown"></div>
+  <div id="loading">Loading pose model...</div>
+  <div id="switchPanel"><div class="box">
+    <h2>Next exercise</h2>
+    <div class="grid" id="switchGrid"></div>
+    <button class="ghost" id="switchCancel" style="width:100%;margin-top:12px">Cancel</button>
+  </div></div>
+</section>
+
+<!-- Summary -->
+<section id="summary" class="screen">
+  <h1>Workout summary</h1>
+  <p class="sub" id="sumHeadline"></p>
+  <div class="tiles" id="sumTiles"></div>
+  <h2>By exercise</h2>
+  <div class="stat" style="padding:4px 12px"><table id="sumTable"></table></div>
+  <h2>Coach says</h2>
+  <div class="stat" id="sumCoach"></div>
+  <p class="note">Calories are a rough estimate. Form score is the share of reps that reached good depth.</p>
+  <div class="row">
+    <button class="ghost" id="copyBtn">Copy summary</button>
+    <button class="ghost" id="replayBtn">Replay voice</button>
+  </div>
+  <button class="primary" id="againBtn" style="margin-top:12px">New workout</button>
+</section>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver, DrawingUtils }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+/* ---------- Exercise configuration ----------
+   Every exercise is tracked as one joint angle that goes high -> low -> high.
+   low  : angle you must get below for the rep to count
+   good : angle that counts as good depth / full range
+   high : angle you must return above to finish the rep
+   Tune these numbers if your camera setup needs it. */
+const EXERCISES = {
+  pushup: { name:"Push-ups", unit:"reps", kcal:0.45, joints:"elbow",
+    low:100, good:88, high:155, deepCue:"Go a little lower", shallowCue:"Chest closer to the floor",
+    tips:"Place the phone to your <b>side</b>, 1.5 to 2 m away, on the floor. Keep your whole body in frame." },
+  pullup: { name:"Pull-ups", unit:"reps", kcal:1.0, joints:"elbow",
+    low:85, good:68, high:150, deepCue:"Pull a bit higher", shallowCue:"Chin over the bar",
+    tips:"Place the phone <b>in front or to the side</b>, 2 to 3 m away. Hang with arms fully straight between reps." },
+  squat: { name:"Squats", unit:"reps", kcal:0.32, joints:"knee",
+    low:112, good:98, high:160, deepCue:"Sit a little deeper", shallowCue:"Hips lower",
+    tips:"Place the phone to your <b>side</b>, 2 m away, at hip height. Stand fully upright between reps." },
+  crunch: { name:"Crunches", unit:"reps", kcal:0.15, joints:"torso",
+    low:118, good:106, high:135, deepCue:"Curl up a bit more", shallowCue:"Lift your shoulders higher",
+    tips:"Lie on your back with knees bent, phone at your <b>side</b>, 2 m away, so shoulder, hip and knee are visible." }
+};
+
+const PRAISE = ["Nice work!", "Looking strong!", "Great form!", "Keep it up!", "You've got this!", "Solid rep!"];
+const PUSH = ["Stay with it!", "Don't stop now!", "Breathe and keep moving!", "Strong finish!"];
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const screens = ["setup", "workout", "summary"];
+const show = name => screens.forEach(s => $(s).classList.toggle("active", s === name));
+const video = $("video"), canvas = $("overlay"), ctx = canvas.getContext("2d");
+
+/* ---------- State ---------- */
+let selected = localStorage.getItem("fc_ex") || "pushup";
+let voiceEnabled = true;
+let landmarker = null, drawing = null, stream = null, rafId = 0, lastVideoTime = -1, wakeLock = null;
+let workoutStart = 0, sets = [], cur = null, phase = "idle", timerId = 0;
+let smooth = null, lastMsgAt = 0, lastVisibleAt = 0, lastNoBodyCue = 0, summaryText = "";
+
+/* ---------- Setup UI ---------- */
+function renderGrid(el, onPick) {
+  el.innerHTML = "";
+  for (const [key, e] of Object.entries(EXERCISES)) {
+    const b = document.createElement("button");
+    b.className = "ex" + (key === selected ? " sel" : "");
+    b.textContent = e.name;
+    b.onclick = () => onPick(key);
+    el.appendChild(b);
+  }
+}
+function pickSetup(key) {
+  selected = key; localStorage.setItem("fc_ex", key);
+  renderGrid($("exGrid"), pickSetup);
+  $("tips").innerHTML = "<b>Setup:</b> " + EXERCISES[key].tips;
+}
+pickSetup(selected);
+$("target").value = localStorage.getItem("fc_target") || 10;
+
+/* ---------- Voice ---------- */
+let voice = null;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices().filter(v => v.lang.startsWith("en"));
+  voice = vs.find(v => /natural|samantha|google us|jenny|aria/i.test(v.name)) || vs[0] || null;
+}
+if ("speechSynthesis" in window) { speechSynthesis.onvoiceschanged = pickVoice; pickVoice(); }
+
+function say(text, { interrupt = false, force = false } = {}) {
+  setMsg(text);
+  if (!("speechSynthesis" in window) || (!voiceEnabled && !force)) return;
+  if (interrupt) speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  if (voice) u.voice = voice;
+  u.rate = 1.05; u.pitch = 1;
+  speechSynthesis.speak(u);
+}
+function setMsg(text, cls = "") {
+  const m = $("msg"); m.textContent = text; m.className = cls; lastMsgAt = performance.now();
+}
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/* ---------- Geometry ---------- */
+const L = { sh:[11,12], el:[13,14], wr:[15,16], hip:[23,24], kn:[25,26], an:[27,28] };
+function angle(a, b, c, w, h) {
+  const v1 = [(a.x - b.x) * w, (a.y - b.y) * h], v2 = [(c.x - b.x) * w, (c.y - b.y) * h];
+  const dot = v1[0] * v2[0] + v1[1] * v2[1];
+  const m = Math.hypot(...v1) * Math.hypot(...v2);
+  if (!m) return null;
+  return Math.acos(Math.max(-1, Math.min(1, dot / m))) * 180 / Math.PI;
+}
+/* Returns the exercise angle averaged across visible sides, or null if not tracked. */
+function measure(lm, joints, w, h) {
+  const triples = { elbow:["sh","el","wr"], knee:["hip","kn","an"], torso:["sh","hip","kn"] }[joints];
+  const out = [];
+  for (let s = 0; s < 2; s++) {
+    const pts = triples.map(k => lm[L[k][s]]);
+    if (pts.every(p => (p.visibility ?? 0) > 0.5)) out.push(angle(pts[0], pts[1], pts[2], w, h));
+  }
+  const ok = out.filter(v => v != null);
+  return ok.length ? ok.reduce((a, b) => a + b) / ok.length : null;
+}
+
+/* ---------- Workout flow ---------- */
+function newSet(key) {
+  return { key, reps:0, good:0, repTimes:[], start:Date.now(), end:null, min:999, lastRepAt:0, goalHit:false, state:"up" };
+}
+function closeSet() {
+  if (cur && cur.reps > 0) { cur.end = Date.now(); sets.push(cur); }
+  cur = null;
+}
+function updateHud() {
+  const e = EXERCISES[cur.key];
+  $("hudEx").textContent = e.name;
+  $("hudCount").textContent = cur.reps;
+  $("hudTarget").textContent = " / " + target;
+}
+let target = 10;
+
+async function loadModel() {
+  if (landmarker) return;
+  const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  const opts = delegate => ({
+    baseOptions: { modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task", delegate },
+    runningMode:"VIDEO", numPoses:1, minPoseDetectionConfidence:0.5, minTrackingConfidence:0.5
+  });
+  try { landmarker = await PoseLandmarker.createFromOptions(fileset, opts("GPU")); }
+  catch { landmarker = await PoseLandmarker.createFromOptions(fileset, opts("CPU")); }
+}
+
+async function startCamera(facing) {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    video:{ facingMode:{ ideal:facing }, width:{ ideal:960 }, height:{ ideal:720 } }, audio:false
+  });
+  video.srcObject = stream;
+  await video.play();
+  const mirror = facing === "user";
+  video.classList.toggle("mirror", mirror);
+  canvas.classList.toggle("mirror", mirror);
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  drawing = new DrawingUtils(ctx);
+}
+
+async function startWorkout() {
+  target = Math.max(1, parseInt($("target").value) || 10);
+  localStorage.setItem("fc_target", target);
+  voiceEnabled = $("voiceOn").checked;
+  $("muteBtn").textContent = "Voice: " + (voiceEnabled ? "on" : "off");
+  if (!navigator.mediaDevices?.getUserMedia) {
+    alert("Camera access needs a secure page. Open this app over https:// or localhost."); return;
+  }
+  // Prime speech synthesis inside the user gesture so mobile browsers allow it later.
+  if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+  show("workout");
+  $("loading").style.display = "flex";
+  try {
+    await startCamera($("cam").value);
+    await loadModel();
+  } catch (err) {
+    $("loading").style.display = "none"; show("setup");
+    alert("Could not start: " + (err.message || err)); return;
+  }
+  $("loading").style.display = "none";
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  sets = []; cur = newSet(selected); smooth = null;
+  workoutStart = Date.now();
+  updateHud();
+  await countdown();
+  phase = "active";
+  cur.start = Date.now();
+  say(`Let's go! ${EXERCISES[cur.key].name}, ${target} reps.`, { interrupt:true });
+  timerId = setInterval(() => {
+    const s = Math.floor((Date.now() - workoutStart) / 1000);
+    $("hudTime").textContent = fmtTime(s);
+  }, 500);
+  lastVideoTime = -1; lastVisibleAt = performance.now();
+  loop();
+}
+
+async function countdown() {
+  const el = $("countdown"); el.style.display = "flex"; phase = "countdown";
+  say("Get in position.", { interrupt:true });
+  for (let i = 5; i > 0; i--) {
+    el.innerHTML = `${i}<span>Get in position so your whole body is visible</span>`;
+    if (i <= 3) say(String(i), { interrupt:true });
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  el.style.display = "none";
+}
+
+function loop() {
+  rafId = requestAnimationFrame(loop);
+  if (video.readyState < 2 || video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  const res = landmarker.detectForVideo(video, performance.now());
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const lm = res.landmarks?.[0];
+  if (!lm) return noBody();
+  if ($("skeletonOn").checked) {
+    drawing.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color:"#ffffff", lineWidth:2 });
+    drawing.drawLandmarks(lm, { color:"#000000", fillColor:"#ffffff", radius:3 });
+  }
+  const ex = EXERCISES[cur.key];
+  const raw = measure(lm, ex.joints, video.videoWidth, video.videoHeight);
+  if (raw == null) return noBody();
+  lastVisibleAt = performance.now();
+  smooth = smooth == null ? raw : smooth * 0.6 + raw * 0.4;
+  if (phase === "active") trackRep(ex, smooth);
+}
+
+function noBody() {
+  const now = performance.now();
+  if (now - lastVisibleAt > 3000 && now - lastNoBodyCue > 8000) {
+    lastNoBodyCue = now;
+    say("I can't see you clearly. Move so your whole body is in frame.", { interrupt:false });
+    document.getElementById("msg").className = "warn";
+  }
+}
+
+function trackRep(ex, a) {
+  const now = performance.now();
+  if (cur.state === "up") {
+    if (a < ex.low) { cur.state = "down"; cur.min = a; cur.downAt = now; }
+  } else {
+    cur.min = Math.min(cur.min, a);
+    if (a > ex.high) {
+      cur.state = "up";
+      if (now - cur.downAt > 250) completeRep(ex, now);
+    }
+  }
+}
+
+function completeRep(ex, now) {
+  const good = cur.min <= ex.good;
+  const dur = (now - (cur.lastRepAt || cur.downAt - 1500)) / 1000;
+  cur.reps++; if (good) cur.good++;
+  cur.repTimes.push(dur); cur.lastRepAt = now;
+  updateHud();
+
+  const n = cur.reps;
+  let line = String(n);
+  let cls = "good";
+  if (n >= target && !cur.goalHit) {
+    cur.goalHit = true;
+    say(`${n}. Target reached! Great set. Keep going or tap finish.`, { interrupt:true }); setMsg("Target reached!", "good"); return;
+  }
+  const remaining = target - n;
+  if (!good) { line += `. ${ex.deepCue}`; cls = "warn"; }
+  else if (dur < 1.0 && n > 2) { line += ". Slow it down"; cls = "warn"; }
+  else if (remaining === Math.floor(target / 2) && target >= 6) line += `. Halfway there!`;
+  else if (remaining === 3 && target > 5) line += ". Three to go!";
+  else if (remaining === 1) line += ". One more!";
+  else if (n % 5 === 0) line += ". " + pick(PRAISE);
+  else if (n > target && n % 3 === 0) line += ". " + pick(PUSH);
+  say(line, { interrupt:true });
+  setMsg(line, cls);
+}
+
+/* ---------- Switching and finishing ---------- */
+$("switchBtn").onclick = () => {
+  renderGrid($("switchGrid"), key => {
+    $("switchPanel").style.display = "none";
+    if (key === cur.key) return;
+    closeSet(); selected = key; cur = newSet(key); smooth = null; updateHud();
+    say(`Switching to ${EXERCISES[key].name}. Get ready.`, { interrupt:true });
+    phase = "countdown";
+    setTimeout(() => { phase = "active"; cur.start = Date.now(); say("Go!", { interrupt:true }); }, 3000);
+  });
+  $("switchPanel").style.display = "flex";
+};
+$("switchCancel").onclick = () => $("switchPanel").style.display = "none";
+$("muteBtn").onclick = () => {
+  voiceEnabled = !voiceEnabled;
+  if (!voiceEnabled) speechSynthesis.cancel();
+  $("muteBtn").textContent = "Voice: " + (voiceEnabled ? "on" : "off");
+};
+$("finishBtn").onclick = finishWorkout;
+
+function stopTracking() {
+  cancelAnimationFrame(rafId); clearInterval(timerId);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; try { wakeLock?.release(); } catch {}
+  phase = "idle";
+}
+
+function finishWorkout() {
+  stopTracking();
+  closeSet();
+  const secs = Math.round((Date.now() - workoutStart) / 1000);
+  buildSummary(secs);
+  show("summary");
+  speechSynthesis.cancel();
+  say(spokenSummary, { interrupt:true });
+}
+
+/* ---------- Summary ---------- */
+let spokenSummary = "";
+const fmtTime = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+function buildSummary(secs) {
+  const agg = {};
+  for (const s of sets) {
+    const a = agg[s.key] ||= { reps:0, good:0, active:0, times:[] };
+    a.reps += s.reps; a.good += s.good; a.active += (s.end - s.start) / 1000; a.times.push(...s.repTimes);
+  }
+  const keys = Object.keys(agg);
+  const totalReps = keys.reduce((n, k) => n + agg[k].reps, 0);
+  const totalGood = keys.reduce((n, k) => n + agg[k].good, 0);
+  const kcal = Math.round(keys.reduce((n, k) => n + agg[k].reps * EXERCISES[k].kcal, 0));
+  const score = totalReps ? Math.round(100 * totalGood / totalReps) : 0;
+
+  $("sumHeadline").textContent = totalReps
+    ? `${totalReps} reps in ${fmtTime(secs)}. ${new Date().toLocaleDateString()}`
+    : "No reps were counted this time.";
+  $("sumTiles").innerHTML = `
+    <div class="stat"><div class="big">${totalReps}</div><div class="lbl">Total reps</div></div>
+    <div class="stat"><div class="big">${score}%</div><div class="lbl">Form score</div></div>
+    <div class="stat"><div class="big">~${kcal}</div><div class="lbl">kcal (est.)</div></div>`;
+
+  let rows = `<tr><th>Exercise</th><th>Reps</th><th>Form</th><th>Avg/rep</th></tr>`;
+  for (const k of keys) {
+    const a = agg[k], pct = Math.round(100 * a.good / a.reps);
+    const avg = a.times.length ? (a.times.reduce((x, y) => x + y) / a.times.length).toFixed(1) + "s" : "-";
+    rows += `<tr><td>${EXERCISES[k].name}</td><td>${a.reps}</td>
+      <td><div class="bar"><i style="width:${pct}%"></i></div>${pct}%</td><td>${avg}</td></tr>`;
+  }
+  $("sumTable").innerHTML = keys.length ? rows : "<tr><td>Nothing recorded</td></tr>";
+
+  // Coach feedback
+  const notes = [];
+  if (!totalReps) notes.push("Make sure the camera can see your whole body and try again.");
+  else {
+    notes.push(score >= 80 ? "Excellent form overall. Most reps hit full range of motion."
+      : score >= 50 ? "Decent work. Aim for full range of motion on every rep."
+      : "Focus on depth next time. Slower, fuller reps beat fast partial ones.");
+    let weakest = null;
+    for (const k of keys) { const p = agg[k].good / agg[k].reps; if (agg[k].reps >= 3 && (!weakest || p < weakest.p)) weakest = { k, p }; }
+    if (weakest && weakest.p < 0.7) notes.push(`${EXERCISES[weakest.k].name} had the most partial reps. ${EXERCISES[weakest.k].shallowCue}.`);
+    const fast = keys.find(k => agg[k].times.length > 4 && agg[k].times.reduce((x, y) => x + y) / agg[k].times.length < 1.2);
+    if (fast) notes.push(`You rushed your ${EXERCISES[fast].name.toLowerCase()}. Control the movement.`);
+    const best = keys.sort((a, b) => agg[b].reps - agg[a].reps)[0];
+    notes.push(`Most reps: ${EXERCISES[best].name} (${agg[best].reps}). Remember to stretch and drink water.`);
+  }
+  $("sumCoach").innerHTML = notes.map(n => `<p class="coach-line">${n}</p>`).join("");
+
+  const lines = keys.map(k => `${agg[k].reps} ${EXERCISES[k].name.toLowerCase()}`);
+  spokenSummary = totalReps
+    ? `Workout complete! You trained for ${Math.max(1, Math.round(secs / 60))} minutes and did ${lines.join(", ").replace(/, ([^,]*)$/, " and $1")}. ` +
+      `That's ${totalReps} reps with a form score of ${score} percent. ${notes[0]} Great job today!`
+    : "Workout ended. I didn't count any reps. Make sure your whole body is visible next time.";
+
+  summaryText = `FormCoach workout ${new Date().toLocaleString()}\nDuration ${fmtTime(secs)}\n` +
+    keys.map(k => `${EXERCISES[k].name}: ${agg[k].reps} reps, form ${Math.round(100 * agg[k].good / agg[k].reps)}%`).join("\n") +
+    `\nTotal ${totalReps} reps, form score ${score}%, ~${kcal} kcal`;
+
+  if (totalReps) {
+    const hist = JSON.parse(localStorage.getItem("fc_history") || "[]");
+    hist.push({ date:Date.now(), secs, totalReps, score, kcal, by:Object.fromEntries(keys.map(k => [k, agg[k].reps])) });
+    localStorage.setItem("fc_history", JSON.stringify(hist.slice(-200)));
+  }
+}
+
+$("copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText(summaryText); $("copyBtn").textContent = "Copied!"; }
+  catch { prompt("Copy your summary:", summaryText); }
+};
+$("replayBtn").onclick = () => say(spokenSummary, { interrupt:true, force:true });
+$("againBtn").onclick = () => { speechSynthesis.cancel(); $("copyBtn").textContent = "Copy summary"; show("setup"); };
+$("startBtn").onclick = startWorkout;
+
+document.addEventListener("visibilitychange", async () => {
+  if (!document.hidden && phase !== "idle" && "wakeLock" in navigator) { try { wakeLock = await navigator.wakeLock.request("screen"); } catch {} }
+});
+</script>
+</body>
+</html>
